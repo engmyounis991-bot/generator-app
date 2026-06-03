@@ -1,0 +1,49 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Generate platform folders
+        run: flutter create .
+
+      - name: Add WhatsApp queries to AndroidManifest
+        run: |
+          python3 - <<'EOF'
+          import pathlib
+          p = pathlib.Path("android/app/src/main/AndroidManifest.xml")
+          t = p.read_text()
+          if "<queries>" not in t:
+              q = ('    <queries>\n'
+                   '        <intent>\n'
+                   '            <action android:name="android.intent.action.VIEW" />\n'
+                   '            <data android:scheme="https" />\n'
+                   '        </intent>\n'
+                   '    </queries>\n')
+              t = t.replace("<application", q + "    <application", 1)
+              p.write_text(t)
+          EOF
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
